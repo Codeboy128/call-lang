@@ -9,23 +9,56 @@
 // === AST Node Definitions ===
 
 enum class ASTNodeType {
+    BOOL, INT, FLOAT, CHAR, STRING,
     PROGRAM, ASSIGNMENT, EVENT_DECL, FUNC_DECL,
-    VARIABLE, LITERAL, FUNC_CALL, BLOCK, ARRAY
+    VARIABLE, FUNC_CALL, BLOCK, ARRAY
 };
+
+SymbolTable symbolTable;
 
 struct ASTNode {
     ASTNodeType type;
     std::string value; // Stores names, literal values, or operator string
+    size_t id = 0;
     std::vector<std::unique_ptr<ASTNode>> children;
 
-    ASTNode(ASTNodeType t, std::string v = "") : type(t), value(std::move(v)) {}
+    ASTNode(ASTNodeType t, std::string v = "") : type(t), value(std::move(v)) {
+        if (t == ASTNodeType::BOOL) {
+            id = v == "True";
+        }
+        else if (t == ASTNodeType::INT) {
+            id = std::stoi(value);
+        }
+        else if (t == ASTNodeType::FLOAT) {
+            *(float*)(&id) = std::stof(value);
+        }
+        else if (t == ASTNodeType::CHAR) {
+            if (value.size() < 2 || value.size() > 10) {
+                throw std::runtime_error("invalid char size");
+            }
+            for (int i = 0; i < value.size() - 2; i++) {
+                id |= value[i + 1] << (i << 3);
+            }
+        }
+        else if (t == ASTNodeType::STRING) {
+            id = symbolTable.string_to_id[value];
+        }
+        else if (t == ASTNodeType::VARIABLE) {
+            id = symbolTable.name_to_id[value];
+        }
+        // else {
+        //     throw std::runtime_error("unknown ASTNodeType");
+        // }
+    }
 };
 
 // === Parser Class ===
 
 class Parser {
 public:
-    explicit Parser(std::vector<Token> tokens) : tokens_(std::move(tokens)), index_(0) {}
+    explicit Parser(std::vector<Token> tokens) : tokens_(std::move(tokens)), index_(0) {
+        symbolTable = SymbolTable(tokens);
+    }
 
     // Main entry point
     std::unique_ptr<ASTNode> parse() {
@@ -188,7 +221,7 @@ private:
             token.type == TokenType::BOOL || token.type == TokenType::CHAR ||
             token.type == TokenType::STRING) {
             advance();
-        return std::make_unique<ASTNode>(ASTNodeType::LITERAL, token.value);
+        return std::make_unique<ASTNode>(ASTNodeType(token.type), token.value);
             }
 
             // Handle Array Literals: [1, -1.1]
@@ -232,8 +265,9 @@ void printAST(const ASTNode* node, int depth = 0) {
 
     // Map enum types to readable strings
     static const std::string type_strings[] = {
+        "BOOL", "INT", "FLOAT", "CHAR", "STRING",
         "PROGRAM", "ASSIGNMENT", "EVENT_DECL", "FUNC_DECL",
-        "VARIABLE", "LITERAL", "FUNC_CALL", "BLOCK", "ARRAY"
+        "VARIABLE", "FUNC_CALL", "BLOCK", "ARRAY"
     };
 
     // Print indentation
@@ -246,5 +280,32 @@ void printAST(const ASTNode* node, int depth = 0) {
     // Recursively print children
     for (const auto& child : node->children) {
         printAST(child.get(), depth + 1);
+    }
+}
+
+void compressAST(const ASTNode* node, std::vector<size_t>& flatArray) {
+    if (!node) return;
+
+    flatArray.push_back(static_cast<size_t>(node->type));
+    flatArray.push_back(node->id);
+    flatArray.push_back(node->children.size());
+
+    for (const auto& child : node->children) {
+        compressAST(child.get(), flatArray);
+    }
+}
+
+// Decodes and prints the flat array
+void printFlatArray(const std::vector<size_t>& flatArray) {
+    std::cout << "Compressed AST Array:\n";
+    // Loop through the array in chunks of 3 (Type, ID, Child Count)
+    for (size_t i = 0; i < flatArray.size(); i += 3) {
+        size_t typeVal = flatArray[i];
+        size_t id = flatArray[i + 1];
+        size_t childCount = flatArray[i + 2];
+
+        std::cout << "Node -> Type: " << typeVal
+        << ", ID: " << id
+        << ", Children: " << childCount << "\n";
     }
 }

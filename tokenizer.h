@@ -90,15 +90,11 @@ std::vector<Token> tokenize(const std::vector<std::string>& v) {
 
 struct SymbolTable {
     std::unordered_map<std::string, size_t> string_to_id;
-    std::unordered_map<std::string, size_t> lower_name_to_id;
-    std::unordered_map<std::string, size_t> snake_name_to_id;
-    std::unordered_map<std::string, size_t> upper_name_to_id;
+    std::unordered_map<std::string, size_t> name_to_id;
     std::unordered_map<std::string, size_t> keyword_to_id = {{"on", 0}, {"fn", 1}};
 
     std::vector<std::string> id_to_string;
-    std::vector<std::string> id_to_lower_name;
-    std::vector<std::string> id_to_snake_name;
-    std::vector<std::string> id_to_upper_name;
+    std::vector<std::string> id_to_name;
     std::vector<std::string> id_to_keyword = {"on", "fn"};
 
     SymbolTable() {}
@@ -114,27 +110,13 @@ struct SymbolTable {
                     }
                     break;
                 }
-                case TokenType::LOWER_NAME: {
-                    if (lower_name_to_id.find(token.value) == lower_name_to_id.end()) {
-                        size_t id = id_to_lower_name.size();
-                        lower_name_to_id[token.value] = id;
-                        id_to_lower_name.push_back(token.value);
-                    }
-                    break;
-                }
-                case TokenType::SNAKE_NAME: {
-                    if (snake_name_to_id.find(token.value) == snake_name_to_id.end()) {
-                        size_t id = id_to_snake_name.size();
-                        snake_name_to_id[token.value] = id;
-                        id_to_snake_name.push_back(token.value);
-                    }
-                    break;
-                }
+                case TokenType::LOWER_NAME:
+                case TokenType::SNAKE_NAME:
                 case TokenType::UPPER_NAME: {
-                    if (upper_name_to_id.find(token.value) == upper_name_to_id.end()) {
-                        size_t id = id_to_upper_name.size();
-                        upper_name_to_id[token.value] = id;
-                        id_to_upper_name.push_back(token.value);
+                    if (name_to_id.find(token.value) == name_to_id.end()) {
+                        size_t id = id_to_name.size();
+                        name_to_id[token.value] = id;
+                        id_to_name.push_back(token.value);
                     }
                     break;
                 }

@@ -1,5 +1,6 @@
 // main.cpp
 #include "parser.h"
+// #include "compressor.h"
 
 int main() {
     std::string code = R"(
@@ -29,6 +30,12 @@ int main() {
     Parser parser(tokens);
     std::unique_ptr<ASTNode> ast = parser.parse();
     printAST(ast.get());
+
+    std::vector<size_t> compressedData;
+    compressAST((const ASTNode*)ast.get(), compressedData);
+
+    // Print Results
+    printFlatArray(compressedData);
 
     return 0;
 }
