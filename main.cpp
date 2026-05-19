@@ -1,16 +1,34 @@
-#include "tokenizer.h"
+// main.cpp
+#include "parser.h"
 
 int main() {
-    // Use raw string literal to avoid escape sequence confusion
-    std::string text = R"(on a = (True + b.a) * [1.0, 0.2, 3] == ~1 + 'hg')";
-
-    auto split = splitAndKeep(text, "+-*/=.'\"~(),[]", " ");
-    auto joined = joinOperators(joinFloats(joinLiterals(split)));
-    std::vector<Token> tokens = tokenize(joined);
-
-    for (const Token& t : tokens) {
-        printToken(t);
+    std::string code = R"(
+    a = True
+    on start(a, b) {
+        SUM(MUL(b, 3), a)
     }
+    fn f(a, b) = SUM(MUL(b, 3), a)
+    fn point(x, y) = {
+        X = x
+        Y = y
+    }
+    s = "hi"
+    s = 'hi'
+    arr = [1, -1.1]
+    )";
+
+    // Split into tokens
+    auto tokens = tokenize(split(code));
+
+    // Print tokens for debugging
+    std::cout << "=== Tokens ===\n";
+    for (const auto& token : tokens) {
+        printToken(token);
+    }
+
+    Parser parser(tokens);
+    std::unique_ptr<ASTNode> ast = parser.parse();
+    printAST(ast.get());
 
     return 0;
 }

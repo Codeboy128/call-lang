@@ -3,13 +3,17 @@
 #include <string>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
+#include <algorithm>
+#include <cctype>
+#include <stdexcept>
 #include "split.h"
 
 enum class TokenType {
-    INT, FLOAT, CHAR, STRING,
+    BOOL, INT, FLOAT, CHAR, STRING,
     LOWER_NAME, SNAKE_NAME, UPPER_NAME,
     BLOCK_OPEN, BLOCK_CLOSE,
-    KEYWORD, OPER, COMMA, NEWLINE
+    KEYWORD, OPER, COMMA
 };
 
 struct Token {
@@ -18,171 +22,125 @@ struct Token {
 };
 
 void printToken(const Token& token) {
-    std::string type_str;
-
-    switch (token.type) {
-        case TokenType::INT:         type_str = "INT"; break;
-        case TokenType::FLOAT:       type_str = "FLOAT"; break;
-        case TokenType::CHAR:        type_str = "CHAR"; break;
-        case TokenType::STRING:      type_str = "STRING"; break;
-        case TokenType::LOWER_NAME:  type_str = "LOWER_NAME"; break;
-        case TokenType::SNAKE_NAME:  type_str = "SNAKE_NAME"; break;
-        case TokenType::UPPER_NAME:  type_str = "UPPER_NAME"; break;
-        case TokenType::BLOCK_OPEN:  type_str = "BLOCK_OPEN"; break;
-        case TokenType::BLOCK_CLOSE: type_str = "BLOCK_CLOSE"; break;
-        case TokenType::KEYWORD:     type_str = "KEYWORD"; break;
-        case TokenType::OPER:        type_str = "OPER"; break;
-        case TokenType::COMMA:       type_str = "COMMA"; break;
-        case TokenType::NEWLINE:     type_str = "NEWLINE"; break;
-    }
-
-    // Escape newline values visually for clear print output
-    std::string value_str = token.value;
-    if (token.type == TokenType::NEWLINE) {
-        value_str = "\\n";
-    }
-
-    std::cout << "Token { type: " << type_str << ", value: \"" << value_str << "\" }\n";
-}
-
-std::vector<Token> tokenize(std::vector<std::string> v) {
-    std::vector<Token> tokens;
-
-    // Define keywords set for quick lookup
-    static const std::unordered_set<std::string> keywords = {
-        "on", "True", "False"
+    static const std::string type_strings[] = {
+        "BOOL", "INT", "FLOAT", "CHAR", "STRING",
+        "LOWER_NAME", "SNAKE_NAME", "UPPER_NAME",
+        "BLOCK_OPEN", "BLOCK_CLOSE",
+        "KEYWORD", "OPER", "COMMA"
     };
 
-    for (const auto& token_str : v) {
-        Token token;
-        token.value = token_str;
+    std::string value_str = token.value;
+    std::cout << "Token { type: " << type_strings[static_cast<int>(token.type)]
+    << ", value: \"" << value_str << "\" }\n";
+}
 
-        // Skip empty tokens
-        if (token_str.empty()) continue;
+TokenType determineIdentifierType(const std::string& str) {
+    if (str == "True" || str == "False") return TokenType::BOOL;
+    static const std::unordered_set<std::string> keywords = {"on", "fn"};
+    if (keywords.count(str)) return TokenType::KEYWORD;
 
-        // Check for string literals
-        if (token_str.length() >= 2 &&
-            ((token_str.front() == '"' && token_str.back() == '"') ||
-            (token_str.front() == '\'' && token_str.back() == '\''))) {
-            // Distinguish between char and string
-            if (token_str.front() == '\'') {
-                token.type = TokenType::CHAR;
-            } else {
-                token.type = TokenType::STRING;
-            }
-            tokens.push_back(token);
-        continue;
-            }
+    bool has_upper = std::any_of(str.begin(), str.end(), ::isupper);
+    bool has_lower = std::any_of(str.begin(), str.end(), ::islower);
+    bool has_under = str.find('_') != std::string::npos;
 
-            // Check for block open/close
-            if (token_str == "{" || token_str == "(" || token_str == "[") {
-                token.type = TokenType::BLOCK_OPEN;
-                tokens.push_back(token);
-                continue;
-            }
-            if (token_str == "}" || token_str == ")" || token_str == "]") {
-                token.type = TokenType::BLOCK_CLOSE;
-                tokens.push_back(token);
-                continue;
-            }
+    if (has_upper && !has_lower) return TokenType::UPPER_NAME;
+    if (has_under && has_lower) return TokenType::SNAKE_NAME;
+    return TokenType::LOWER_NAME;
+}
 
-            // Check for comma
-            if (token_str == ",") {
-                token.type = TokenType::COMMA;
-                tokens.push_back(token);
-                continue;
-            }
+TokenType determineLiteralType(const std::string& str) {
+    if (str[0] == '\'') return TokenType::CHAR;
+    if (str[0] == '"')  return TokenType::STRING;
 
-            // Check for newline
-            if (token_str == "\n") {
-                token.type = TokenType::NEWLINE;
-                tokens.push_back(token);
-                continue;
-            }
+    size_t start = (str[0] == '-' && str.length() > 1) ? 1 : 0;
+    size_t dot_count = std::count(str.begin() + start, str.end(), '.');
+    bool all_digits = std::all_of(str.begin() + start, str.end(), [](char c) {
+        return std::isdigit(c) || c == '.';
+    });
 
-            // Check for operators
-            if (operators.count(token_str)) {
-                token.type = TokenType::OPER;
-                tokens.push_back(token);
-                continue;
-            }
-
-            // Check for numeric literals
-            bool is_numeric = true;
-            bool has_dot = false;
-            bool has_digit = false;
-
-            // Handle negative numbers
-            size_t start_idx = (token_str[0] == '-' && token_str.length() > 1) ? 1 : 0;
-
-            if (start_idx >= token_str.length()) {
-                is_numeric = false;
-            } else {
-                for (size_t i = start_idx; i < token_str.length(); i++) {
-                    char c = token_str[i];
-                    if (c == '.') {
-                        if (has_dot) {
-                            is_numeric = false;
-                            break;
-                        }
-                        has_dot = true;
-                    } else if (c >= '0' && c <= '9') {
-                        has_digit = true;
-                    } else {
-                        is_numeric = false;
-                        break;
-                    }
-                }
-            }
-
-            if (is_numeric && has_digit) {
-                if (has_dot) {
-                    token.type = TokenType::FLOAT;
-                } else {
-                    token.type = TokenType::INT;
-                }
-                tokens.push_back(token);
-                continue;
-            }
-
-            // Check for identifiers
-            if (!token_str.empty() && (std::isalpha(token_str[0]) || token_str[0] == '_')) {
-                // Check if it's a keyword
-                if (keywords.count(token_str)) {
-                    token.type = TokenType::KEYWORD;
-                    tokens.push_back(token);
-                    continue;
-                }
-
-                // Determine identifier type based on naming convention
-                bool has_underscore = token_str.find('_') != std::string::npos;
-                bool is_all_upper = true;
-                bool has_lower = false;
-
-                for (char c : token_str) {
-                    if (std::islower(c)) has_lower = true;
-                    if (!std::isupper(c) && c != '_') is_all_upper = false;
-                }
-
-                if (is_all_upper && token_str.length() > 0) {
-                    token.type = TokenType::UPPER_NAME;
-                } else if (has_underscore && has_lower) {
-                    token.type = TokenType::SNAKE_NAME;
-                } else if (std::islower(token_str[0])) {
-                    token.type = TokenType::LOWER_NAME;
-                } else {
-                    // Default to LOWER_NAME for identifiers that don't fit patterns
-                    token.type = TokenType::LOWER_NAME;
-                }
-
-                tokens.push_back(token);
-                continue;
-            }
-
-            // If we get here, treat as operator (catch-all for unrecognized tokens)
-            token.type = TokenType::OPER;
-            tokens.push_back(token);
+    if (all_digits && dot_count <= 1 && str.length() > start + dot_count) {
+        return (dot_count == 1) ? TokenType::FLOAT : TokenType::INT;
     }
 
+    if (str == "{" || str == "(" || str == "[") return TokenType::BLOCK_OPEN;
+    if (str == "}" || str == ")" || str == "]") return TokenType::BLOCK_CLOSE;
+    if (str == ",") return TokenType::COMMA;
+
+    return TokenType::OPER;
+}
+
+std::vector<Token> tokenize(const std::vector<std::string>& v) {
+    std::vector<Token> tokens;
+    tokens.reserve(v.size());
+
+    for (const auto& token_str : v) {
+        if (token_str.empty()) continue;
+
+        TokenType type;
+        if (std::isalpha(token_str[0]) || token_str[0] == '_') {
+            type = determineIdentifierType(token_str);
+        } else {
+            type = determineLiteralType(token_str);
+        }
+
+        tokens.push_back({type, token_str});
+    }
     return tokens;
 }
+
+struct SymbolTable {
+    std::unordered_map<std::string, size_t> string_to_id;
+    std::unordered_map<std::string, size_t> lower_name_to_id;
+    std::unordered_map<std::string, size_t> snake_name_to_id;
+    std::unordered_map<std::string, size_t> upper_name_to_id;
+    std::unordered_map<std::string, size_t> keyword_to_id = {{"on", 0}, {"fn", 1}};
+
+    std::vector<std::string> id_to_string;
+    std::vector<std::string> id_to_lower_name;
+    std::vector<std::string> id_to_snake_name;
+    std::vector<std::string> id_to_upper_name;
+    std::vector<std::string> id_to_keyword = {"on", "fn"};
+
+    SymbolTable() {}
+
+    SymbolTable(std::vector<Token> tokens) {
+        for (const auto& token : tokens) {
+            switch (token.type) {
+                case TokenType::STRING: {
+                    if (string_to_id.find(token.value) == string_to_id.end()) {
+                        size_t id = id_to_string.size();
+                        string_to_id[token.value] = id;
+                        id_to_string.push_back(token.value);
+                    }
+                    break;
+                }
+                case TokenType::LOWER_NAME: {
+                    if (lower_name_to_id.find(token.value) == lower_name_to_id.end()) {
+                        size_t id = id_to_lower_name.size();
+                        lower_name_to_id[token.value] = id;
+                        id_to_lower_name.push_back(token.value);
+                    }
+                    break;
+                }
+                case TokenType::SNAKE_NAME: {
+                    if (snake_name_to_id.find(token.value) == snake_name_to_id.end()) {
+                        size_t id = id_to_snake_name.size();
+                        snake_name_to_id[token.value] = id;
+                        id_to_snake_name.push_back(token.value);
+                    }
+                    break;
+                }
+                case TokenType::UPPER_NAME: {
+                    if (upper_name_to_id.find(token.value) == upper_name_to_id.end()) {
+                        size_t id = id_to_upper_name.size();
+                        upper_name_to_id[token.value] = id;
+                        id_to_upper_name.push_back(token.value);
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+    }
+};

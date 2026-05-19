@@ -1,2 +1,2 @@
 # call-lang
-The first server-oriented programming language inspired by Haskell and Smalltalk
+The first server-oriented programming language with functional core + URL-message-passing
